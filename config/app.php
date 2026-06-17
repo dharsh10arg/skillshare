@@ -27,6 +27,7 @@ return [
         Illuminate\Pipeline\PipelineServiceProvider::class,
         Illuminate\Routing\RoutingServiceProvider::class,
         Illuminate\Session\SessionServiceProvider::class,
+        Illuminate\Translation\TranslationServiceProvider::class,
         Illuminate\Validation\ValidationServiceProvider::class,
         Illuminate\View\ViewServiceProvider::class,
     ],
