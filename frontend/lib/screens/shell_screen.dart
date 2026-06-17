@@ -33,7 +33,7 @@ class _ShellScreenState extends State<ShellScreen> {
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
-    final destinations = const [
+    const destinations = [
       NavigationDestination(
           icon: Icon(Icons.space_dashboard_outlined),
           selectedIcon: Icon(Icons.space_dashboard),
@@ -93,9 +93,9 @@ class _ShellScreenState extends State<ShellScreen> {
     return Scaffold(
       body: _screens[_index],
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _index.clamp(0, 4),
+        selectedIndex: _index,
         onDestinationSelected: (value) => setState(() => _index = value),
-        destinations: destinations.take(5).toList(),
+        destinations: destinations,
       ),
     );
   }

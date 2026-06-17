@@ -1,5 +1,5 @@
 name: skillsphere
-description: SkillSphere mobile app
+description: SkillSphere - Time-credit skill exchange platform. Learn and teach skills using time credits instead of money.
 publish_to: "none"
 version: 1.0.0+1
 
@@ -20,4 +20,18 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  
+  # Assets
+  assets:
+    - assets/images/
+    - assets/icons/
+
+  # Fonts (optional - add if you want custom fonts)
+  # fonts:
+  #   - family: CustomFont
+  #     fonts:
+  #       - asset: assets/fonts/CustomFont-Regular.ttf
+  #       - asset: assets/fonts/CustomFont-Bold.ttf
+  #         weight: 700
+
 
