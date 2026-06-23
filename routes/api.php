@@ -34,9 +34,11 @@ Route::prefix('v1')->group(function () {
         Route::post('/projects/{project}/contributions', [ProjectController::class, 'contribute']);
         Route::get('/portfolio/{username}', [PortfolioController::class, 'show']);
         Route::get('/community', [CommunityController::class, 'index']);
+        Route::post('/community', [CommunityController::class, 'store']);
         Route::post('/questions', [CommunityController::class, 'question']);
         Route::post('/answers', [CommunityController::class, 'answer']);
         Route::post('/tutorials', [CommunityController::class, 'tutorial']);
+        Route::get('/messages', [MessageController::class, 'index']);
         Route::get('/messages/{thread}', [MessageController::class, 'thread']);
         Route::post('/messages', [MessageController::class, 'send']);
         Route::get('/notifications', [MessageController::class, 'notifications']);
