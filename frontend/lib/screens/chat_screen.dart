@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../core/api_client.dart';
+import '../core/demo_data.dart';
 import '../models/message.dart';
 import '../widgets/app_scaffold.dart';
 
@@ -29,15 +30,23 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       final api = context.read<ApiClient>();
       final response = await api.get('/messages');
-      final messageList = response['data'] as List<dynamic>? ?? [];
-      return messageList.map((item) => Message.fromJson(item as Map<String, dynamic>)).toList();
+      final messageList = response['data'] as List<dynamic>? ??
+          response['messages'] as List<dynamic>? ??
+          response['items'] as List<dynamic>? ?? [];
+      final messages = messageList
+          .map((item) => Message.fromJson(item as Map<String, dynamic>))
+          .toList();
+      if (messages.isEmpty) {
+        return DemoData.messages;
+      }
+      return messages;
     } catch (e) {
-      if (!mounted) return [];
+      if (!mounted) return DemoData.messages;
       final messenger = ScaffoldMessenger.of(context);
       messenger.showSnackBar(
         SnackBar(content: Text('Error loading messages: $e'), backgroundColor: Colors.red),
       );
-      return [];
+      return DemoData.messages;
     }
   }
 
@@ -45,6 +54,10 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget build(BuildContext context) {
     return AppScaffold(
       title: 'Chat',
+      onRefresh: () async {
+        setState(_loadMessages);
+        await _messages;
+      },
       children: [
         FutureBuilder<List<Message>>(
           future: _messages,
@@ -72,7 +85,10 @@ class _ChatScreenState extends State<ChatScreen> {
             }
             return Column(
               children: messages
-                  .map((message) => _MessageCard(message))
+                  .map((message) => _MessageCard(
+                        message,
+                        onReplySent: _reloadMessages,
+                      ))
                   .toList(),
             );
           },
@@ -80,12 +96,24 @@ class _ChatScreenState extends State<ChatScreen> {
       ],
     );
   }
+
+  void _reloadMessages() {
+    if (!mounted) return;
+    setState(_loadMessages);
+  }
 }
 
-class _MessageCard extends StatelessWidget {
-  const _MessageCard(this.message);
-  final Message message;
+class _MessageCard extends StatefulWidget {
+  const _MessageCard(this.message, {this.onReplySent});
 
+  final Message message;
+  final VoidCallback? onReplySent;
+
+  @override
+  State<_MessageCard> createState() => _MessageCardState();
+}
+
+class _MessageCardState extends State<_MessageCard> {
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -100,7 +128,7 @@ class _MessageCard extends StatelessWidget {
               Row(
                 children: [
                   CircleAvatar(
-                    child: Text((message.senderName ?? 'U').substring(0, 1)),
+                    child: Text((widget.message.senderName ?? 'U').substring(0, 1)),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -108,17 +136,17 @@ class _MessageCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          message.senderName ?? 'Unknown',
+                          widget.message.senderName ?? 'Unknown',
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         Text(
-                          _formatDate(message.createdAt),
+                          _formatDate(widget.message.createdAt),
                           style: Theme.of(context).textTheme.labelSmall,
                         ),
                       ],
                     ),
                   ),
-                  if (message.bookingId != null)
+                  if (widget.message.bookingId != null)
                     const Chip(
                       label: Text('Booking'),
                       avatar: Icon(Icons.event, size: 14),
@@ -128,7 +156,7 @@ class _MessageCard extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                message.content,
+                widget.message.content,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodySmall,
@@ -136,9 +164,13 @@ class _MessageCard extends StatelessWidget {
               const SizedBox(height: 8),
               Align(
                 alignment: Alignment.centerRight,
-                child: FilledButton(
-                  onPressed: () => _showReplyDialog(context),
-                  child: const Text('Reply'),
+                child: Semantics(
+                  label: 'chatReplyButton',
+                  button: true,
+                  child: FilledButton(
+                    onPressed: () => _showReplyDialog(context),
+                    child: const Text('Reply'),
+                  ),
                 ),
               ),
             ],
@@ -165,11 +197,11 @@ class _MessageCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(message.senderName ?? 'Unknown', style: Theme.of(context).textTheme.headlineSmall),
+            Text(widget.message.senderName ?? 'Unknown', style: Theme.of(context).textTheme.headlineSmall),
             const SizedBox(height: 4),
-            Text(_formatDate(message.createdAt), style: Theme.of(context).textTheme.labelSmall),
+            Text(_formatDate(widget.message.createdAt), style: Theme.of(context).textTheme.labelSmall),
             const SizedBox(height: 12),
-            Text(message.content),
+            Text(widget.message.content),
             const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: () => Navigator.pop(context),
@@ -198,21 +230,69 @@ class _MessageCard extends StatelessWidget {
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancel'),
           ),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Message sent!'),
-                  backgroundColor: Colors.green,
-                  duration: Duration(seconds: 2),
-                ),
-              );
-            },
-            child: const Text('Send'),
+          Semantics(
+            label: 'chatReplySendButton',
+            button: true,
+            child: FilledButton(
+              onPressed: () async {
+                final content = replyCtrl.text.trim();
+                if (content.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Enter a reply message before sending.'),
+                      backgroundColor: Colors.red,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                  return;
+                }
+                
+                if (content.length < 2) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Reply message is too short.'),
+                      backgroundColor: Colors.red,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                  return;
+                }
+                
+                Navigator.pop(context);
+                await _sendReply(context, content);
+              },
+              child: const Text('Send'),
+            ),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _sendReply(BuildContext context, String content) async {
+    final api = context.read<ApiClient>();
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await api.post('/messages', {
+        'recipient_id': widget.message.senderId,
+        'content': content,
+        'body': content,
+      });
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Reply sent successfully!'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      widget.onReplySent?.call();
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Failed to send reply: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 }

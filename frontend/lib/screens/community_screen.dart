@@ -29,8 +29,29 @@ class _CommunityScreenState extends State<CommunityScreen> {
     try {
       final api = context.read<ApiClient>();
       final response = await api.get('/community');
-      final postList = response['data'] as List<dynamic>? ?? [];
-      return postList.map((item) => CommunityPost.fromJson(item as Map<String, dynamic>)).toList();
+      final questionList = response['questions'] as List<dynamic>? ?? [];
+      final tutorialList = response['tutorials'] as List<dynamic>? ?? [];
+      final fallbackList = response['data'] as List<dynamic>? ??
+          response['posts'] as List<dynamic>? ??
+          response['community'] as List<dynamic>? ??
+          [];
+      final posts = <CommunityPost>[];
+
+      posts.addAll(questionList.map((item) => CommunityPost.fromJson(
+            item as Map<String, dynamic>,
+            defaultPostType: 'question',
+          )));
+      posts.addAll(tutorialList.map((item) => CommunityPost.fromJson(
+            item as Map<String, dynamic>,
+            defaultPostType: 'tutorial',
+          )));
+
+      if (posts.isEmpty) {
+        posts.addAll(fallbackList.map((item) => CommunityPost.fromJson(item as Map<String, dynamic>)));
+      }
+
+      posts.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return posts;
     } catch (e) {
       if (!mounted) return [];
       final messenger = ScaffoldMessenger.of(context);
@@ -45,13 +66,21 @@ class _CommunityScreenState extends State<CommunityScreen> {
   Widget build(BuildContext context) {
     return AppScaffold(
       title: 'Community',
+      onRefresh: () async {
+        setState(_loadPosts);
+        await _posts;
+      },
       children: [
         Padding(
           padding: const EdgeInsets.only(bottom: 16),
-          child: FilledButton.icon(
-            onPressed: () => _showNewPostDialog(),
-            icon: const Icon(Icons.add),
-            label: const Text('Create post'),
+          child: Semantics(
+            label: 'communityCreatePostButton',
+            button: true,
+            child: FilledButton.icon(
+              onPressed: () => _showNewPostDialog(),
+              icon: const Icon(Icons.add),
+              label: const Text('Create post'),
+            ),
           ),
         ),
         FutureBuilder<List<CommunityPost>>(
@@ -114,15 +143,23 @@ class _CommunityScreenState extends State<CommunityScreen> {
                   onChanged: (value) => setState(() => postType = value ?? 'question'),
                 ),
                 const SizedBox(height: 12),
-                TextField(
-                  controller: titleCtrl,
-                  decoration: const InputDecoration(labelText: 'Title'),
+                Semantics(
+                  label: 'communityTitleField',
+                  textField: true,
+                  child: TextField(
+                    controller: titleCtrl,
+                    decoration: const InputDecoration(labelText: 'Title'),
+                  ),
                 ),
                 const SizedBox(height: 12),
-                TextField(
-                  controller: contentCtrl,
-                  decoration: const InputDecoration(labelText: 'Description'),
-                  maxLines: 3,
+                Semantics(
+                  label: 'communityDescriptionField',
+                  textField: true,
+                  child: TextField(
+                    controller: contentCtrl,
+                    decoration: const InputDecoration(labelText: 'Description'),
+                    maxLines: 3,
+                  ),
                 ),
               ],
             ),
@@ -133,36 +170,67 @@ class _CommunityScreenState extends State<CommunityScreen> {
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancel'),
           ),
-          FilledButton(
-            onPressed: () async {
-              if (!mounted) return;
-              final messenger = ScaffoldMessenger.of(context);
-              final navigator = Navigator.of(context);
-              try {
-                final api = context.read<ApiClient>();
-                await api.post('/community', {
-                  'title': titleCtrl.text,
-                  'content': contentCtrl.text,
-                  'post_type': postType,
-                });
+          Semantics(
+            label: 'communityPostSubmitButton',
+            button: true,
+            child: FilledButton(
+              onPressed: () async {
                 if (!mounted) return;
-                navigator.pop();
-                setState(_loadPosts);
-                messenger.showSnackBar(
-                  const SnackBar(
-                    content: Text('Post created successfully!'),
-                    backgroundColor: Colors.green,
-                    duration: Duration(seconds: 2),
-                  ),
-                );
-              } catch (e) {
-                if (!mounted) return;
-                messenger.showSnackBar(
-                  SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-                );
-              }
-            },
-            child: const Text('Post'),
+                final messenger = ScaffoldMessenger.of(context);
+                final navigator = Navigator.of(context);
+                
+                // Validate inputs
+                final title = titleCtrl.text.trim();
+                final content = contentCtrl.text.trim();
+                
+                if (title.isEmpty) {
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text('Post title cannot be empty.'),
+                      backgroundColor: Colors.red,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                  return;
+                }
+                
+                if (content.isEmpty) {
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text('Post content cannot be empty.'),
+                      backgroundColor: Colors.red,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                  return;
+                }
+                
+                try {
+                  final api = context.read<ApiClient>();
+                  await api.post('/community', {
+                    'title': title,
+                    'content': content,
+                    'post_type': postType,
+                  });
+                  if (!mounted) return;
+                  navigator.pop();
+                  setState(_loadPosts);
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text('Post created successfully!'),
+                      backgroundColor: Colors.green,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                } catch (e) {
+                  if (!mounted) return;
+                  messenger.showSnackBar(
+                    SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+                  );
+                }
+              },
+              child: const Text('Post'),
+            ),
           ),
         ],
       ),

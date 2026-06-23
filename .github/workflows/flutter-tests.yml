@@ -1,0 +1,36 @@
+name: Flutter Frontend Tests
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+
+jobs:
+  test:
+    name: Run Flutter tests for the frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 'stable'
+
+      - name: Change to frontend folder
+        run: cd frontend
+
+      - name: Install dependencies
+        run: flutter pub get
+        working-directory: frontend
+
+      - name: Run unit/widget tests
+        run: flutter test
+        working-directory: frontend
