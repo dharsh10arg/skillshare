@@ -1,6 +1,7 @@
 name: Flutter Frontend Tests
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
